@@ -1,4 +1,5 @@
-import { CORNER_TYPES, FT3_PER_YD3, type Grid, type Result, type SideResult } from '../calc';
+import { useMemo } from 'react';
+import { CORNER_TYPES, FT3_PER_YD3, type Grid, type Result, sideTerms, type SideResult } from '../calc';
 import { fmt, fmtElev } from '../matrix';
 
 const num = (v: number, d: number) => v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -24,7 +25,11 @@ function Total({ label, grid, v, cls }: { label: string; grid: Grid; v: number; 
   );
 }
 
-function Formula({ name, side, area, grid }: { name: string; side: SideResult; area: number; grid: Grid }) {
+/** Only the first few depths of each Σ are listed; big grids can have thousands. */
+const MAX_TERMS = 12;
+
+function Formula({ name, side, area, grid, result }: { name: 'CUT' | 'FILL'; side: SideResult; area: number; grid: Grid; result: Result }) {
+  const terms = useMemo(() => sideTerms(result, name === 'CUT' ? 'cut' : 'fill', MAX_TERMS), [result, name]);
   const parts = side.sums.map((s, i) => (i === 0 ? fmtElev(s) : `${i + 1}×${fmtElev(s)}`)).filter((_, i) => side.sums[i] !== 0);
   const u = grid.units;
   return (
@@ -41,9 +46,12 @@ function Formula({ name, side, area, grid }: { name: string; side: SideResult; a
       </div>
       <details>
         <summary>Σh terms</summary>
-        {side.terms.map((t, i) => (
+        {terms.shown.map((t, i) => (
           <div key={i} className="terms">
-            Σh{i + 1} = {t.length ? `${t.map((v) => fmtElev(v)).join(' + ')} = ${fmtElev(side.sums[i])}` : '0'}
+            Σh{i + 1} ={' '}
+            {t.length
+              ? `${t.map((v) => fmtElev(v)).join(' + ')}${terms.total[i] > t.length ? ` + … (${terms.total[i]} terms)` : ''} = ${fmtElev(side.sums[i])}`
+              : '0'}
           </div>
         ))}
       </details>
@@ -95,8 +103,8 @@ export function Results({ grid, result }: { grid: Grid; result: Result }) {
         </tbody>
       </table>
 
-      <Formula name="CUT" side={result.cut} area={result.area} grid={grid} />
-      <Formula name="FILL" side={result.fill} area={result.area} grid={grid} />
+      <Formula name="CUT" side={result.cut} area={result.area} grid={grid} result={result} />
+      <Formula name="FILL" side={result.fill} area={result.area} grid={grid} result={result} />
     </div>
   );
 }

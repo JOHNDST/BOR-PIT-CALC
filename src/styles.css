@@ -1,4 +1,4 @@
-/* Pixel art UI: one ink colour on one paper colour, hard edges, notched borders. */
+/* Pixel art UI: black ink on paper, orange for cut, blue for fill. Hard edges, notched borders. */
 
 /* Pixel Operator by Jayvee Enaguas, CC0. Σ ² ³ added by scripts/add-pixel-glyphs.py.
    Sizes stay on the font grid (16px multiples, 8px multiples for the "8" face) so glyphs stay crisp. */
@@ -38,44 +38,7 @@
   --font-mono: 'Pixel Operator Mono', monospace;
   --font-head: 'Pixel Operator 8', monospace;
   --b: 3px; /* border pixel */
-}
 
-:root,
-[data-theme='maroon'] {
-  --bg: #efe6d8;
-  --panel: #f8f2e9;
-  --ink: #5b1f24;
-  --ink-soft: #94605f;
-  --on-ink: #f8f2e9;
-  --tone-1: #f8f2e9;
-  --tone-2: #e4c6c0;
-  --tone-3: #a85a60;
-  --tone-4: #5b1f24;
-  --cut: #5b1f24;
-  --fill: #5b1f24;
-  --pat-cut: #b9787b;
-  --pat-fill: #b9787b;
-  --faint: #ddcbbb;
-}
-
-[data-theme='gameboy'] {
-  --bg: #8bac0f;
-  --panel: #9bbc0f;
-  --ink: #0f380f;
-  --ink-soft: #306230;
-  --on-ink: #9bbc0f;
-  --tone-1: #9bbc0f;
-  --tone-2: #8bac0f;
-  --tone-3: #306230;
-  --tone-4: #0f380f;
-  --cut: #0f380f;
-  --fill: #0f380f;
-  --pat-cut: #306230;
-  --pat-fill: #306230;
-  --faint: #7d9c0d;
-}
-
-[data-theme='twotone'] {
   --bg: #e9e5dc;
   --panel: #f7f5f0;
   --ink: #1f1f1f;
@@ -87,26 +50,10 @@
   --tone-4: #1f1f1f;
   --cut: #d24a12;
   --fill: #1f5fcf;
-  --pat-cut: #ea9a76;
-  --pat-fill: #8eafe6;
+  --pat-cut: #f2bea4;
+  --pat-fill: #b3c9f0;
+  --iso-hatch: #c3bcb0;
   --faint: #d3cec4;
-}
-
-[data-theme='blueprint'] {
-  --bg: #0d2c62;
-  --panel: #123a7a;
-  --ink: #e8f0ff;
-  --ink-soft: #92abd8;
-  --on-ink: #123a7a;
-  --tone-1: #123a7a;
-  --tone-2: #3d63a6;
-  --tone-3: #92abd8;
-  --tone-4: #e8f0ff;
-  --cut: #e8f0ff;
-  --fill: #e8f0ff;
-  --pat-cut: #6f8fc8;
-  --pat-fill: #6f8fc8;
-  --faint: #24508f;
 }
 
 * {
@@ -130,10 +77,15 @@ body {
   color: var(--on-ink);
 }
 
+[hidden] {
+  display: none !important;
+}
+
 /* notched pixel border: four offset shadows leave the corners open */
 .panel,
 .btn,
-.editor {
+.editor,
+.zoom-tools {
   box-shadow:
     0 calc(-1 * var(--b)) 0 0 var(--ink),
     0 var(--b) 0 0 var(--ink),
@@ -144,16 +96,15 @@ body {
 .app {
   max-width: 1500px;
   margin: 0 auto;
-  padding: 20px 20px 32px;
+  padding: 16px 20px 28px;
 }
 
 .top {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  align-items: baseline;
+  gap: 8px 20px;
   flex-wrap: wrap;
-  margin-bottom: 22px;
+  margin-bottom: 16px;
 }
 
 h1 {
@@ -162,7 +113,7 @@ h1 {
   font-weight: normal;
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin: 0 0 8px;
+  margin: 0;
 }
 
 .sub {
@@ -173,13 +124,13 @@ h1 {
 .layout {
   display: grid;
   grid-template-columns: 290px minmax(0, 1fr) 340px;
-  gap: 24px;
+  gap: 20px;
   align-items: start;
 }
 
 .col-left {
   display: grid;
-  gap: 24px;
+  gap: 20px;
 }
 
 .panel {
@@ -190,7 +141,7 @@ h1 {
 
 .panel > h2 {
   margin: 0;
-  padding: 8px 10px 7px;
+  padding: 7px 10px 6px;
   background: var(--ink);
   color: var(--on-ink);
   font-family: var(--font-head);
@@ -201,18 +152,17 @@ h1 {
 }
 
 .panel > :not(h2) {
-  margin: 12px;
+  margin: 10px 12px;
 }
 
 /* form controls */
 
 .field {
   display: grid;
-  gap: 3px;
+  gap: 2px;
 }
 
 .field > span {
-  font-size: 16px;
   color: var(--ink-soft);
   text-transform: uppercase;
 }
@@ -229,19 +179,12 @@ textarea {
   font-family: var(--font-mono);
   font-size: 16px;
   color: var(--ink);
-  background: var(--tone-1);
+  background: #fff;
   border: var(--b) solid var(--ink);
   border-radius: 0;
   padding: 3px 6px;
   min-width: 0;
   width: 100%;
-}
-
-[data-theme='maroon'] input,
-[data-theme='maroon'] textarea,
-[data-theme='twotone'] input,
-[data-theme='twotone'] textarea {
-  background: #fff;
 }
 
 select {
@@ -267,14 +210,6 @@ input.bad {
   text-decoration: line-through;
 }
 
-textarea {
-  display: block;
-  resize: vertical;
-  white-space: pre;
-  overflow: auto;
-  line-height: 1.2;
-}
-
 .btn {
   font-family: var(--font-ui);
   font-weight: 700;
@@ -284,7 +219,7 @@ textarea {
   background: var(--panel);
   border: 0;
   border-radius: 0;
-  padding: 9px 10px 8px;
+  padding: 7px 10px 6px;
   margin: var(--b);
   cursor: pointer;
   line-height: 1;
@@ -307,67 +242,116 @@ textarea {
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: default;
 }
 
 .btn.sm {
-  font-size: 16px;
-  padding: 7px 8px 6px;
+  padding: 5px 7px 4px;
 }
 
-.btn.wide {
-  width: calc(100% - 2 * var(--b));
+.icon-btn {
+  padding: 5px;
+  display: inline-grid;
+  place-items: center;
+}
+
+.icon {
+  display: block;
 }
 
 .row-btns {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.grow-right {
+  margin-left: auto;
 }
 
 .setup {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .two {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 6px 10px;
+}
+
+.units {
+  width: 104px;
+}
+
+.examples .dim {
+  margin-right: 4px;
 }
 
 .hint,
 .dim {
   color: var(--ink-soft);
-  font-size: 16px;
   margin: 0;
 }
 
 .msg {
   border: 2px dashed var(--ink);
   padding: 6px 8px;
-  font-size: 16px;
   display: grid;
   gap: 6px;
   justify-items: start;
 }
 
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .matrix {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
-.matrix-head {
-  display: flex;
-  justify-content: space-between;
-  font-size: 16px;
-  text-transform: uppercase;
+/* fixed height with scroll bars always shown, so big matrices stay inside the panel */
+.matrix textarea {
+  display: block;
+  height: 176px;
+  resize: vertical;
+  white-space: pre;
+  overflow: scroll;
+  line-height: 1.2;
 }
 
-.level input {
-  width: 84px;
+.level-input {
+  width: 76px;
+}
+
+/* pixel scroll bars */
+.px-scroll::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.px-scroll::-webkit-scrollbar-track {
+  background: repeating-conic-gradient(var(--tone-2) 0 25%, var(--panel) 0 50%) 0 0 / 4px 4px;
+}
+.px-scroll::-webkit-scrollbar-thumb {
+  background: var(--ink);
+  border: 3px solid var(--panel);
+}
+.px-scroll::-webkit-scrollbar-corner {
+  background: var(--panel);
+}
+@supports not selector(::-webkit-scrollbar) {
+  .px-scroll {
+    scrollbar-color: var(--ink) var(--tone-2);
+  }
 }
 
 /* visualizer */
@@ -388,23 +372,40 @@ textarea {
   gap: 4px;
 }
 
-.plan-wrap {
-  min-width: 0;
+/* pan / zoom viewport shared by plan and iso views */
+.vp {
+  position: relative;
+  height: clamp(360px, 64vh, 700px);
+  overflow: hidden;
+  border: 2px dashed var(--faint);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
-.plan-scroll {
-  overflow: auto;
-  max-height: 72vh;
-  border: 2px dashed var(--faint);
+.vp.dragging {
+  cursor: grabbing !important;
 }
 
 .plan-stage {
-  position: relative;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.plan-stage > * {
+  position: absolute;
+}
+
+.plan-canvas {
+  position: absolute;
+  inset: 0;
+  image-rendering: pixelated;
 }
 
 .plan {
   display: block;
-  user-select: none;
+  pointer-events: none;
 }
 
 .plan * {
@@ -418,8 +419,6 @@ textarea {
 
 .t-axis {
   fill: var(--ink-soft);
-  font-family: var(--font-mono);
-  font-size: 16px;
 }
 
 .t-dim,
@@ -442,11 +441,11 @@ textarea {
 }
 
 .pat-cut {
-  fill: var(--pat-cut, var(--cut));
+  fill: var(--pat-cut);
 }
 
 .pat-fill {
-  fill: var(--pat-fill, var(--fill));
+  fill: var(--pat-fill);
 }
 
 .ink-faint {
@@ -457,37 +456,11 @@ textarea {
   fill: var(--panel);
 }
 
-/* unshaded cells have fill none, which svg would not hit-test */
-.cell {
-  pointer-events: all;
-}
-
-.cell.on:hover {
-  stroke: var(--ink-soft);
-  stroke-width: 6;
-}
-
-.mode-shape .cell {
-  cursor: pointer;
-}
-
-.mode-shape .cell.off:hover {
-  fill: var(--tone-2);
-}
-
-.cell-off-outline {
-  fill: none;
-  stroke: var(--faint);
-  stroke-width: 2;
-  stroke-dasharray: 2 4;
-  pointer-events: none;
-}
-
 .edge {
+  fill: none;
   stroke: var(--ink);
   stroke-width: 2;
   stroke-dasharray: 6 4;
-  pointer-events: none;
 }
 
 .edge.boundary {
@@ -495,59 +468,51 @@ textarea {
   stroke-dasharray: none;
 }
 
-.corner {
-  cursor: pointer;
-}
-
-.mode-shape .corner {
-  pointer-events: none;
-}
-
 .badge {
   stroke: var(--ink);
   stroke-width: 2;
 }
 
-.badge-t {
-  font-family: var(--font-ui) !important;
-  font-weight: 700;
-  font-size: 16px !important;
-}
-
-.type-A .badge {
+.badge.type-A {
   fill: var(--tone-1);
 }
-.type-B .badge {
+.badge.type-B {
   fill: var(--tone-2);
 }
-.type-C .badge {
+.badge.type-C {
   fill: var(--tone-3);
 }
-.type-D .badge {
+.badge.type-D {
   fill: var(--tone-4);
 }
-.type-A .badge-t,
-.type-B .badge-t {
+
+.plan .badge-t {
+  font-family: var(--font-ui);
+  font-weight: 700;
+}
+.badge-t.type-A,
+.badge-t.type-B {
   fill: var(--ink);
 }
-.type-C .badge-t,
-.type-D .badge-t {
+.badge-t.type-C,
+.badge-t.type-D {
   fill: var(--on-ink);
 }
 
-.corner:hover .badge {
-  stroke-width: 4;
+.hl-cell {
+  border: 3px dashed var(--ink);
+  pointer-events: none;
+}
+
+.hover-ring,
+.sel-ring {
+  pointer-events: none;
+  border: 2px dashed var(--ink);
 }
 
 .sel-ring {
-  fill: none;
-  stroke: var(--ink);
-  stroke-width: 2;
-  stroke-dasharray: 4 4;
-}
-
-.hit {
-  fill: transparent;
+  border: 3px solid var(--ink);
+  outline: 2px solid var(--panel);
 }
 
 /* HTML twin of the svg badge (legend, editor, table) */
@@ -557,11 +522,8 @@ textarea {
   width: 20px;
   height: 20px;
   border: 2px solid var(--ink);
-  font-family: var(--font-ui);
   font-weight: 700;
-  font-size: 16px;
   line-height: 1;
-  padding-top: 1px;
   vertical-align: middle;
 }
 .badge-html.type-A {
@@ -584,8 +546,10 @@ textarea {
   background: var(--panel);
   display: grid;
   gap: 8px;
-  padding: 0 0 10px;
+  padding: 0 0 8px;
   z-index: 2;
+  cursor: default;
+  user-select: text;
 }
 
 .editor > * {
@@ -599,52 +563,81 @@ textarea {
   align-items: center;
   background: var(--ink);
   color: var(--on-ink);
-  font-family: var(--font-ui);
   font-weight: 700;
-  font-size: 16px;
   text-transform: uppercase;
-  padding: 6px 6px 6px 10px;
+  padding: 2px 2px 2px 10px;
 }
 
 .editor-head .x {
-  background: none;
-  border: 0;
+  margin: 2px;
+  box-shadow: none;
+  background: var(--ink);
   color: var(--on-ink);
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0 4px;
+}
+
+.editor-head .x:hover {
+  background: var(--tone-3);
 }
 
 .editor-type {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 16px;
 }
 
 .editor .field.row {
   grid-template-columns: 74px 1fr;
 }
 
-.editor-h {
-  font-size: 16px;
-}
-
 .editor-nav {
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
 }
 
 .editor-hint {
-  font-size: 16px;
   color: var(--ink-soft);
+  margin-left: 6px;
+}
+
+.zoom-tools {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--panel);
+  padding: 0 6px 0 0;
+  cursor: default;
+}
+
+.zoom-tools .btn {
+  box-shadow: none;
+  margin: 0;
+}
+
+.zoom-pct,
+.vp-note {
+  color: var(--ink-soft);
+}
+
+.zoom-pct {
+  min-width: 48px;
+  text-align: right;
+}
+
+.vp-note {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  background: var(--panel);
+  padding: 0 4px;
+  pointer-events: none;
 }
 
 .status {
   min-height: 40px;
-  font-size: 16px;
   border-top: 2px dashed var(--faint);
   padding-top: 8px;
   overflow-wrap: anywhere;
@@ -654,7 +647,6 @@ textarea {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 16px;
-  font-size: 16px;
   align-items: center;
 }
 
@@ -670,43 +662,22 @@ textarea {
   height: 20px;
   border: 2px solid var(--ink);
   background-color: var(--panel);
-  image-rendering: pixelated;
 }
 
 .sw-cut {
-  background-image: repeating-linear-gradient(45deg, var(--pat-cut, var(--cut)) 0 2px, transparent 2px 6px);
+  background-image: repeating-linear-gradient(45deg, var(--pat-cut) 0 2px, transparent 2px 6px);
 }
 
 .sw-fill {
-  background-image: radial-gradient(var(--pat-fill, var(--fill)) 1px, transparent 1.5px);
+  background-image: radial-gradient(var(--pat-fill) 1px, transparent 1.5px);
   background-size: 4px 4px;
 }
 
 /* iso */
 
-.iso-wrap {
-  position: relative;
-  border: 2px dashed var(--faint);
-}
-
 .iso-canvas {
   display: block;
   image-rendering: pixelated;
-}
-
-.iso-tools {
-  display: flex;
-  padding: 4px;
-  border-bottom: 2px dashed var(--faint);
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
-
-.iso-note {
-  font-size: 16px;
-  color: var(--ink-soft);
-  margin-left: 6px;
 }
 
 /* results */
@@ -724,13 +695,11 @@ textarea {
 }
 
 .total-tag {
-  font-family: var(--font-ui);
   font-weight: 700;
-  font-size: 16px;
   text-transform: uppercase;
   background: var(--ink);
   color: var(--on-ink);
-  padding: 5px 0 4px;
+  padding: 4px 0 3px;
   text-align: center;
 }
 
@@ -750,7 +719,6 @@ textarea {
   grid-column: 2;
   text-align: right;
   color: var(--ink-soft);
-  font-size: 16px;
 }
 
 .total.cut .total-num {
@@ -762,7 +730,6 @@ textarea {
 }
 
 .net-note {
-  font-size: 16px;
   text-align: right;
   color: var(--ink-soft);
   margin-top: -6px;
@@ -795,14 +762,11 @@ textarea {
 
 .sum-table th {
   font-weight: normal;
-  font-size: 16px;
   color: var(--ink-soft);
   text-transform: uppercase;
 }
 
 .formula {
-  font-family: var(--font-ui);
-  font-size: 16px;
   border-top: 2px dashed var(--faint);
   padding-top: 10px;
   display: grid;
@@ -824,13 +788,8 @@ textarea {
 }
 
 .foot {
-  margin-top: 24px;
-  font-size: 16px;
+  margin-top: 20px;
   color: var(--ink-soft);
-}
-
-.theme-pick select {
-  width: auto;
 }
 
 @media (max-width: 1200px) {
@@ -862,11 +821,11 @@ textarea {
   .results {
     order: 3;
   }
-  .p-existing {
+  .p-elev {
     order: 4;
   }
-  .p-proposed {
-    order: 5;
+  .vp {
+    height: 420px;
   }
   h1 {
     font-size: 16px;

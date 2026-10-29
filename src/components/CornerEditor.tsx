@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CornerResult } from '../calc';
 import { fmt, fmtElev } from '../matrix';
+import type { PanZoom } from '../usePanZoom';
+import { IconButton } from './Icon';
 import type { Layout } from './PlanView';
 
 interface Props {
   corner: CornerResult;
   layout: Layout;
+  view: PanZoom;
+  viewport: { w: number; h: number };
   units: string;
   onChange: (field: 'existing' | 'proposed', value: number) => void;
   onStep: (dir: 1 | -1) => void;
@@ -13,7 +17,7 @@ interface Props {
 }
 
 const W = 236;
-const H = 286;
+const H = 250;
 
 function Field({
   label,
@@ -57,11 +61,13 @@ function Field({
   );
 }
 
-export function CornerEditor({ corner, layout, units, onChange, onStep, onClose }: Props) {
-  const x0 = layout.x(corner.c);
-  const y0 = layout.y(corner.r);
-  const left = x0 + 22 + W > layout.width ? Math.max(4, x0 - 22 - W) : x0 + 22;
-  const top = Math.max(4, Math.min(y0 - 40, layout.height - H - 4));
+export function CornerEditor({ corner, layout, view, viewport, units, onChange, onStep, onClose }: Props) {
+  // corner position inside the viewport; keep the editor fully visible
+  const x0 = layout.x(corner.c) + view.x;
+  const y0 = layout.y(corner.r) + view.y;
+  const right = x0 + 22;
+  const left = Math.max(4, Math.min(right + W > viewport.w - 4 ? x0 - 22 - W : right, viewport.w - W - 4));
+  const top = Math.max(4, Math.min(y0 - 40, viewport.h - H - 4));
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -76,14 +82,12 @@ export function CornerEditor({ corner, layout, units, onChange, onStep, onClose 
   const kind = corner.cut > 0 ? 'CUT' : corner.fill > 0 ? 'FILL' : 'NO CHANGE';
 
   return (
-    <div className="editor" style={{ left, top, width: W }} role="dialog" aria-label="Edit corner elevations">
+    <div className="editor no-pan" style={{ left, top, width: W }} role="dialog" aria-label="Edit corner elevations">
       <div className="editor-head">
         <span>
           Corner {corner.r + 1},{corner.c + 1}
         </span>
-        <button className="x" onClick={onClose} aria-label="Close">
-          x
-        </button>
+        <IconButton icon="close" label="Close (Esc)" className="x" onClick={onClose} />
       </div>
       <div className="editor-type">
         <span className={`badge-html type-${corner.type}`}>{corner.type}</span>
@@ -98,14 +102,10 @@ export function CornerEditor({ corner, layout, units, onChange, onStep, onClose 
         {fmtElev(corner.h, 3)} {units} <b>{kind}</b>
       </div>
       <div className="editor-nav">
-        <button className="btn sm" onClick={() => onStep(-1)}>
-          Prev
-        </button>
-        <button className="btn sm" onClick={() => onStep(1)}>
-          Next
-        </button>
+        <IconButton icon="left" label="Previous corner (Shift+Enter)" onClick={() => onStep(-1)} />
+        <IconButton icon="right" label="Next corner (Enter)" onClick={() => onStep(1)} />
+        <span className="editor-hint">Enter = next</span>
       </div>
-      <div className="editor-hint">Enter next / Shift+Enter prev / Esc close</div>
     </div>
   );
 }

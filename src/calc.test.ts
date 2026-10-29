@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compute, createGrid, cornerCount, FT3_PER_YD3, resizeGrid } from './calc';
+import { compute, createGrid, cornerCount, FT3_PER_YD3, resizeGrid, sideTerms } from './calc';
 import { PRESETS } from './presets';
 import { formatMatrix, parseMatrix } from './matrix';
 
@@ -51,6 +51,26 @@ describe('borrow pit method', () => {
     ];
     expect(cornerCount(active, 1, 1)).toBe(2);
     expect(cornerCount(active, 0, 2)).toBe(0);
+  });
+
+  it('lists the depths behind each Σ, capped for display', () => {
+    const r = compute(preset('basement'));
+    const t = sideTerms(r, 'cut', 3);
+    expect(t.total).toEqual([5, 4, 2, 0]); // the 0.0 corner adds nothing to Σh1
+    expect(t.shown[0].map((v) => round(v, 1))).toEqual([5.6, 14.1, 15.8]); // reading order, first 3 of 5
+    expect(t.shown[2].map((v) => round(v, 1))).toEqual([4.4, 10.9]);
+  });
+
+  it('handles the largest grid quickly', () => {
+    const g = createGrid(300, 300, 5, 5, 'ft');
+    g.existing = g.existing.map((row, r) => row.map((_, c) => 100 + Math.sin(r / 25) * 4 + Math.cos(c / 31) * 3));
+    g.proposed = g.proposed.map((row) => row.map(() => 100));
+    const t = performance.now();
+    const r = compute(g);
+    expect(performance.now() - t).toBeLessThan(1000);
+    expect(r.counts).toEqual([4, 1196, 0, 89401]);
+    const cellCut = r.cells.flat().reduce((a, c) => a + c.cut, 0);
+    expect(cellCut / r.cut.volume).toBeCloseTo(1, 9);
   });
 
   it('keeps values when resizing', () => {

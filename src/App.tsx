@@ -1,23 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { compute, createGrid, type Grid, resizeGrid } from './calc';
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { compute, cornerCount, createGrid, type Grid, resizeGrid } from './calc';
 import { type Cell, fmt } from './matrix';
 import { PRESETS } from './presets';
 import { CornerEditor } from './components/CornerEditor';
 import { GridSetup } from './components/GridSetup';
+import { IconButton } from './components/Icon';
 import { IsoView } from './components/IsoView';
 import { MatrixInput } from './components/MatrixInput';
 import { type CornerRef, type Mode, PlanView } from './components/PlanView';
 import { Results } from './components/Results';
 
 const STORAGE_KEY = 'borrow-pit-calc/v1';
-export const THEMES = [
-  { id: 'maroon', label: 'Maroon' },
-  { id: 'gameboy', label: 'Game Boy' },
-  { id: 'twotone', label: 'Two-tone' },
-  { id: 'blueprint', label: 'Blueprint' },
-] as const;
 
 type View = 'plan' | 'iso';
+type Field = 'existing' | 'proposed';
 
 function validGrid(g: unknown): g is Grid {
   const x = g as Grid;
@@ -34,17 +30,13 @@ function validGrid(g: unknown): g is Grid {
   );
 }
 
-function load(): { grid: Grid; theme: string } {
-  const fallback = { grid: createGrid(4, 3, 10, 10, 'ft'), theme: 'maroon' };
+function load(): Grid {
+  const fallback = createGrid(4, 3, 10, 10, 'ft');
   try {
-    const params = new URLSearchParams(location.search);
-    const preset = PRESETS.find((p) => p.id === params.get('example'));
-    const theme = params.get('theme');
+    const preset = PRESETS.find((p) => p.id === new URLSearchParams(location.search).get('example'));
+    if (preset) return structuredClone(preset.grid);
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-    return {
-      grid: preset ? structuredClone(preset.grid) : validGrid(saved?.grid) ? saved.grid : fallback.grid,
-      theme: theme ?? saved?.theme ?? fallback.theme,
-    };
+    return validGrid(saved?.grid) ? saved.grid : fallback;
   } catch {
     return fallback;
   }
@@ -55,25 +47,27 @@ function applyValues(m: number[][], values: Cell[][]): number[][] {
 }
 
 export default function App() {
-  const initial = useMemo(load, []);
-  const [grid, setGrid] = useState<Grid>(initial.grid);
-  const [theme, setTheme] = useState(initial.theme);
+  const [grid, setGrid] = useState<Grid>(load);
   const [mode, setMode] = useState<Mode>('edit');
   const [view, setView] = useState<View>('plan');
+  const [tab, setTab] = useState<Field>('existing');
   const [selected, setSelected] = useState<CornerRef | null>(null);
   const [hover, setHover] = useState<{ r: number; c: number } | null>(null);
   const [level, setLevel] = useState('0');
 
   const result = useMemo(() => compute(grid), [grid]);
 
+  // saving a big grid takes a moment, so wait until edits pause
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ grid, theme }));
-    } catch {
-      /* storage unavailable: nothing to keep */
-    }
-  }, [grid, theme]);
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ grid }));
+      } catch {
+        /* storage unavailable or full: nothing to keep */
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [grid]);
 
   // drop the selection when its corner leaves the site
   const selCorner = selected ? result.corners[selected.r]?.[selected.c] : undefined;
@@ -81,7 +75,13 @@ export default function App() {
     if (selected && !selCorner?.type) setSelected(null);
   }, [selected, selCorner]);
 
-  const used = useCallback((r: number, c: number) => !!result.corners[r]?.[c]?.type, [result]);
+  // the matrix text and results can trail a fast series of edits on big grids; the plan stays live
+  const lazyGrid = useDeferredValue(grid);
+  const lazyResult = useDeferredValue(result);
+
+  // depends on the site shape only, so editing elevations does not reformat both matrices
+  const active = lazyGrid.active;
+  const used = useCallback((r: number, c: number) => cornerCount(active, r, c) > 0, [active]);
   const usedList = useMemo(() => result.corners.flat().filter((k) => k.type), [result]);
 
   const step = (dir: 1 | -1) => {
@@ -91,10 +91,11 @@ export default function App() {
     setSelected({ r: n.r, c: n.c });
   };
 
-  const setCorner = (field: 'existing' | 'proposed', v: number) => {
+  const setCorner = (field: Field, v: number) => {
     if (!selected) return;
     setGrid((g) => {
-      const m = g[field].map((row) => row.slice());
+      const m = g[field].slice();
+      m[selected.r] = m[selected.r].slice();
       m[selected.r][selected.c] = v;
       return { ...g, [field]: m };
     });
@@ -102,13 +103,14 @@ export default function App() {
 
   const toggleCell = (r: number, c: number) =>
     setGrid((g) => {
-      const active = g.active.map((row) => row.slice());
-      active[r][c] = !active[r][c];
-      if (!active.flat().some(Boolean)) return g; // keep at least one cell
-      return { ...g, active };
+      const next = g.active.slice();
+      next[r] = next[r].slice();
+      next[r][c] = !next[r][c];
+      if (!next.some((row) => row.some(Boolean))) return g; // keep at least one cell
+      return { ...g, active: next };
     });
 
-  const resizeAndApply = (field: 'existing' | 'proposed', values: Cell[][]) => {
+  const resizeAndApply = (field: Field, values: Cell[][]) => {
     const rows = values.length - 1;
     const cols = Math.max(...values.map((r) => r.length)) - 1;
     setGrid((g) => {
@@ -117,10 +119,13 @@ export default function App() {
     });
   };
 
+  const levelValue = Number(level);
+  const levelOk = level.trim() !== '' && Number.isFinite(levelValue);
+
   const hoverCell = hover && mode === 'edit' ? result.cells[hover.r]?.[hover.c] : null;
   const status = (() => {
-    if (mode === 'shape') return 'SHAPE MODE: click cells to add or remove them from the site.';
-    if (!hoverCell?.active) return 'Click a corner to edit its elevations. Hover a cell to see its volume.';
+    if (mode === 'shape') return 'Click cells to add or remove them from the site. Drag to pan, scroll or pinch to zoom.';
+    if (!hoverCell?.active) return 'Click a corner to edit its elevations. Hover a cell to see its volume. Drag to pan, scroll or pinch to zoom.';
     const ks = [
       result.corners[hoverCell.r][hoverCell.c],
       result.corners[hoverCell.r][hoverCell.c + 1],
@@ -135,102 +140,92 @@ export default function App() {
   return (
     <div className="app">
       <header className="top">
-        <div>
-          <h1>Borrow Pit Calc</h1>
-          <p className="sub">
-            Grid method cut + fill. V = A/4 × (1Σh1 + 2Σh2 + 3Σh3 + 4Σh4)
-          </p>
-        </div>
-        <label className="field row theme-pick">
-          <span>Theme</span>
-          <select value={theme} onChange={(e) => setTheme(e.target.value)}>
-            {THEMES.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <h1>Borrow Pit Calc</h1>
+        <p className="sub">Grid method cut + fill. V = A/4 × (1Σh1 + 2Σh2 + 3Σh3 + 4Σh4)</p>
       </header>
 
       <main className="layout">
         <aside className="col-left">
           <section className="panel p-grid">
             <h2>1 Grid</h2>
-            <GridSetup grid={grid} onGenerate={(f) => setGrid((g) => ({ ...resizeGrid(g, f.cols, f.rows), cellW: f.cellW, cellH: f.cellH, units: f.units }))} />
-            <div className="row-btns">
+            <GridSetup
+              grid={grid}
+              onGenerate={(f) => setGrid((g) => ({ ...resizeGrid(g, f.cols, f.rows), cellW: f.cellW, cellH: f.cellH, units: f.units }))}
+              onReset={() => setGrid((g) => createGrid(g.cols, g.rows, g.cellW, g.cellH, g.units))}
+            />
+            <div className="row-btns examples">
+              <span className="dim">Examples</span>
               {PRESETS.map((p) => (
                 <button key={p.id} className="btn sm" title={p.note} onClick={() => setGrid(structuredClone(p.grid))}>
                   {p.label}
                 </button>
               ))}
-              <button className="btn sm" onClick={() => setGrid((g) => createGrid(g.cols, g.rows, g.cellW, g.cellH, g.units))}>
-                Clear
-              </button>
             </div>
           </section>
 
-          <section className="panel p-existing">
-            <h2>2 Existing</h2>
+          <section className="panel p-elev">
+            <h2>2 Elevations</h2>
+            <div className="tabs" role="tablist" aria-label="Elevation matrix">
+              {(['existing', 'proposed'] as const).map((f) => (
+                <button key={f} role="tab" aria-selected={tab === f} className={`btn sm ${tab === f ? 'on' : ''}`} onClick={() => setTab(f)}>
+                  {f}
+                </button>
+              ))}
+              <span className="dim grow-right">
+                {grid.rows + 1} × {grid.cols + 1}
+              </span>
+            </div>
             <MatrixInput
-              title="Existing elevations"
-              matrix={grid.existing}
+              label="Existing"
+              hidden={tab !== 'existing'}
+              matrix={lazyGrid.existing}
               used={used}
               onApply={(v) => setGrid((g) => ({ ...g, existing: applyValues(g.existing, v) }))}
               onResizeApply={(v) => resizeAndApply('existing', v)}
             />
-          </section>
-
-          <section className="panel p-proposed">
-            <h2>3 Proposed</h2>
             <MatrixInput
-              title="Proposed elevations"
-              matrix={grid.proposed}
+              label="Proposed"
+              hidden={tab !== 'proposed'}
+              matrix={lazyGrid.proposed}
               used={used}
               onApply={(v) => setGrid((g) => ({ ...g, proposed: applyValues(g.proposed, v) }))}
               onResizeApply={(v) => resizeAndApply('proposed', v)}
             >
-              <div className="row-btns level">
-                <input aria-label="Level elevation" inputMode="decimal" value={level} onChange={(e) => setLevel(e.target.value)} />
-                <button
-                  className="btn sm"
-                  disabled={!Number.isFinite(Number(level)) || level.trim() === ''}
-                  onClick={() => setGrid((g) => ({ ...g, proposed: g.proposed.map((row) => row.map(() => Number(level))) }))}
-                >
-                  Level all
-                </button>
-                <button className="btn sm" onClick={() => setGrid((g) => ({ ...g, proposed: g.existing.map((row) => row.slice()) }))}>
-                  = Existing
-                </button>
-              </div>
+              <input className="level-input" aria-label="Level elevation" inputMode="decimal" value={level} onChange={(e) => setLevel(e.target.value)} />
+              <IconButton
+                icon="level"
+                label="Level all proposed corners to this elevation"
+                disabled={!levelOk}
+                onClick={() => setGrid((g) => ({ ...g, proposed: g.proposed.map((row) => row.map(() => levelValue)) }))}
+              />
+              <IconButton
+                icon="copy"
+                label="Copy existing elevations into proposed"
+                onClick={() => setGrid((g) => ({ ...g, proposed: g.existing.map((row) => row.slice()) }))}
+              />
             </MatrixInput>
+            <p className="hint">One row of corners per line. Paste from a spreadsheet; - skips a corner.</p>
           </section>
         </aside>
 
         <section className="panel viz">
           <div className="viz-bar">
-            <div className="seg" role="tablist" aria-label="View">
-              <button className={`btn sm ${view === 'plan' ? 'on' : ''}`} onClick={() => setView('plan')}>
-                Plan
-              </button>
-              <button className={`btn sm ${view === 'iso' ? 'on' : ''}`} onClick={() => setView('iso')}>
-                Iso 3D
-              </button>
+            <div className="seg" aria-label="View">
+              <IconButton icon="plan" label="Top view (plan)" active={view === 'plan'} onClick={() => setView('plan')} />
+              <IconButton icon="iso" label="3D view (isometric)" active={view === 'iso'} onClick={() => setView('iso')} />
             </div>
             {view === 'plan' && (
               <div className="seg" aria-label="Edit mode">
-                <button className={`btn sm ${mode === 'edit' ? 'on' : ''}`} onClick={() => setMode('edit')}>
-                  Edit elev.
-                </button>
-                <button
-                  className={`btn sm ${mode === 'shape' ? 'on' : ''}`}
+                <IconButton icon="pencil" label="Edit elevations: click a corner" active={mode === 'edit'} onClick={() => setMode('edit')} />
+                <IconButton
+                  icon="shape"
+                  label="Edit site shape: click cells to add or remove"
+                  active={mode === 'shape'}
                   onClick={() => {
                     setMode('shape');
                     setSelected(null);
                   }}
-                >
-                  Edit shape
-                </button>
+                />
               </div>
             )}
           </div>
@@ -244,12 +239,14 @@ export default function App() {
               onCornerClick={setSelected}
               onCellClick={toggleCell}
               onCellHover={setHover}
-              overlay={(L) =>
+              overlay={(L, pz, size) =>
                 selCorner?.type && mode === 'edit' ? (
                   <CornerEditor
                     key={`${selCorner.r}-${selCorner.c}`}
                     corner={selCorner}
                     layout={L}
+                    view={pz}
+                    viewport={size}
                     units={grid.units}
                     onChange={setCorner}
                     onStep={step}
@@ -259,10 +256,14 @@ export default function App() {
               }
             />
           ) : (
-            <IsoView grid={grid} result={result} theme={theme} />
+            <IsoView grid={grid} result={result} />
           )}
 
-          <div className="status">{view === 'plan' ? status : 'Solid = proposed grade, dashed = existing ground, posts and walls = cut / fill depth.'}</div>
+          <div className="status">
+            {view === 'plan'
+              ? status
+              : 'Hatch = existing ground. Black = proposed grade, grey = existing grid, orange / blue = cut / fill depth. Dashed = hidden. Drag to pan, scroll or pinch to zoom.'}
+          </div>
 
           <div className="legend">
             {(['A', 'B', 'C', 'D'] as const).map((t, i) => (
@@ -282,7 +283,7 @@ export default function App() {
 
         <aside className="panel results">
           <h2>Results</h2>
-          <Results grid={grid} result={result} />
+          <Results grid={lazyGrid} result={lazyResult} />
         </aside>
       </main>
       <footer className="foot">h = existing - proposed. Positive h is cut, negative h is fill. Corners are typed by how many site cells share them.</footer>

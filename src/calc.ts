@@ -45,8 +45,6 @@ export interface CellResult {
 export interface SideResult {
   /** Σh1..Σh4 */
   sums: [number, number, number, number];
-  /** individual depths behind each Σ, in reading order */
-  terms: [number[], number[], number[], number[]];
   /** 1*Σh1 + 2*Σh2 + 3*Σh3 + 4*Σh4 */
   weighted: number;
   volume: number;
@@ -63,7 +61,7 @@ export interface Result {
   activeCells: number;
 }
 
-export const LIMITS = { maxCols: 40, maxRows: 40 };
+export const LIMITS = { maxCols: 300, maxRows: 300 };
 
 export function makeMatrix<T>(rows: number, cols: number, fill: (r: number, c: number) => T): T[][] {
   return Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => fill(r, c)));
@@ -103,71 +101,94 @@ export function cornerCount(active: boolean[][], r: number, c: number): number {
   return n;
 }
 
-export function cornerType(n: number): CornerType | null {
-  return n >= 1 && n <= 4 ? CORNER_TYPES[n - 1] : null;
-}
-
-function emptySide(): SideResult {
-  return { sums: [0, 0, 0, 0], terms: [[], [], [], []], weighted: 0, volume: 0 };
-}
-
+/**
+ * Plain loops and one object per corner and cell: this runs on every edit, and a 300 x 300 grid
+ * has about 90k corners.
+ */
 export function compute(g: Grid): Result {
+  const { rows, cols, active, existing, proposed } = g;
   const area = g.cellW * g.cellH;
+  const q = area / 4;
   const counts: [number, number, number, number] = [0, 0, 0, 0];
-  const cut = emptySide();
-  const fill = emptySide();
+  const cutSums: [number, number, number, number] = [0, 0, 0, 0];
+  const fillSums: [number, number, number, number] = [0, 0, 0, 0];
 
-  const corners = makeMatrix(g.rows + 1, g.cols + 1, (r, c): CornerResult => {
-    const n = cornerCount(g.active, r, c);
-    const existing = g.existing[r][c];
-    const proposed = g.proposed[r][c];
-    const h = existing - proposed;
-    const res: CornerResult = {
-      r,
-      c,
-      n,
-      type: cornerType(n),
-      existing,
-      proposed,
-      h,
-      cut: Math.max(h, 0),
-      fill: Math.max(-h, 0),
-    };
-    if (n > 0) {
-      counts[n - 1]++;
-      if (res.cut > 0) {
-        cut.sums[n - 1] += res.cut;
-        cut.terms[n - 1].push(res.cut);
+  const corners: CornerResult[][] = new Array(rows + 1);
+  for (let r = 0; r <= rows; r++) {
+    const up = active[r - 1];
+    const down = active[r];
+    const eRow = existing[r];
+    const pRow = proposed[r];
+    const row: CornerResult[] = new Array(cols + 1);
+    for (let c = 0; c <= cols; c++) {
+      const n = (up ? +!!up[c - 1] + +!!up[c] : 0) + (down ? +!!down[c - 1] + +!!down[c] : 0);
+      const e = eRow[c];
+      const p = pRow[c];
+      const h = e - p;
+      const cut = h > 0 ? h : 0;
+      const fill = h < 0 ? -h : 0;
+      if (n > 0) {
+        counts[n - 1]++;
+        cutSums[n - 1] += cut;
+        fillSums[n - 1] += fill;
       }
-      if (res.fill > 0) {
-        fill.sums[n - 1] += res.fill;
-        fill.terms[n - 1].push(res.fill);
-      }
+      row[c] = { r, c, n, type: n > 0 ? CORNER_TYPES[n - 1] : null, existing: e, proposed: p, h, cut, fill };
     }
-    return res;
-  });
-
-  for (const side of [cut, fill]) {
-    side.weighted = side.sums.reduce((acc, s, i) => acc + (i + 1) * s, 0);
-    side.volume = (area / 4) * side.weighted;
+    corners[r] = row;
   }
 
   let activeCells = 0;
-  const cells = makeMatrix(g.rows, g.cols, (r, c): CellResult => {
-    const active = g.active[r][c];
-    if (!active) return { r, c, active, cut: 0, fill: 0 };
-    activeCells++;
-    const four = [corners[r][c], corners[r][c + 1], corners[r + 1][c], corners[r + 1][c + 1]];
-    return {
-      r,
-      c,
-      active,
-      cut: (area / 4) * four.reduce((a, k) => a + k.cut, 0),
-      fill: (area / 4) * four.reduce((a, k) => a + k.fill, 0),
-    };
-  });
+  const cells: CellResult[][] = new Array(rows);
+  for (let r = 0; r < rows; r++) {
+    const top = corners[r];
+    const bottom = corners[r + 1];
+    const row: CellResult[] = new Array(cols);
+    for (let c = 0; c < cols; c++) {
+      if (!active[r][c]) {
+        row[c] = { r, c, active: false, cut: 0, fill: 0 };
+        continue;
+      }
+      activeCells++;
+      row[c] = {
+        r,
+        c,
+        active: true,
+        cut: q * (top[c].cut + top[c + 1].cut + bottom[c].cut + bottom[c + 1].cut),
+        fill: q * (top[c].fill + top[c + 1].fill + bottom[c].fill + bottom[c + 1].fill),
+      };
+    }
+    cells[r] = row;
+  }
 
+  const side = (sums: [number, number, number, number]): SideResult => {
+    const weighted = sums[0] + 2 * sums[1] + 3 * sums[2] + 4 * sums[3];
+    return { sums, weighted, volume: q * weighted };
+  };
+  const cut = side(cutSums);
+  const fill = side(fillSums);
   return { area, corners, cells, counts, cut, fill, net: cut.volume - fill.volume, activeCells };
+}
+
+export interface Terms {
+  /** first `limit` depths behind each Σ, in reading order */
+  shown: [number[], number[], number[], number[]];
+  /** how many non-zero depths each Σ has */
+  total: [number, number, number, number];
+}
+
+/** The individual depths behind Σh1..Σh4, for display only (kept out of compute). */
+export function sideTerms(result: Result, side: 'cut' | 'fill', limit: number): Terms {
+  const shown: Terms['shown'] = [[], [], [], []];
+  const total: Terms['total'] = [0, 0, 0, 0];
+  for (const row of result.corners) {
+    for (const k of row) {
+      const v = k[side];
+      if (k.n === 0 || v <= 0) continue;
+      total[k.n - 1]++;
+      if (shown[k.n - 1].length < limit) shown[k.n - 1].push(v);
+    }
+  }
+  return { shown, total };
 }
 
 /** Cubic feet per cubic yard. */

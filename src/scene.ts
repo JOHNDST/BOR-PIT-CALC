@@ -30,6 +30,8 @@ export interface Scene {
   cells: SceneCell[];
   width: number;
   depth: number;
+  cellW: number;
+  cellH: number;
   zMin: number;
   zMax: number;
 }
@@ -67,13 +69,13 @@ export function buildScene(grid: Grid, result: Result): Scene {
       fill: cl.fill,
     }));
   if (!Number.isFinite(zMin)) zMin = zMax = 0;
-  return { points, cells, width: grid.cols * grid.cellW, depth: grid.rows * grid.cellH, zMin, zMax };
+  return { points, cells, width: grid.cols * grid.cellW, depth: grid.rows * grid.cellH, cellW: grid.cellW, cellH: grid.cellH, zMin, zMax };
 }
 
 export interface Projected {
   sx: number;
   sy: number;
-  /** larger is closer to the viewer */
+  /** distance toward the viewer along the view direction; larger is closer */
   depth: number;
 }
 
@@ -82,22 +84,23 @@ export interface Projection {
 }
 
 /**
- * 2:1 pixel-art isometric projection. `turn` rotates the site in 90 degree steps,
- * `zScale` is the vertical exaggeration in screen pixels per elevation unit.
+ * Fixed 2:1 pixel-art isometric projection, viewed from the south-east corner above the site.
+ * `zScale` is screen pixels per elevation unit, so zScale / scale is the vertical exaggeration.
  */
-export function isoProjection(scene: Scene, opts: { turn: number; scale: number; zScale: number; zBase: number }): Projection {
-  const { turn, scale, zScale, zBase } = opts;
+export function isoProjection(scene: Scene, opts: { scale: number; zScale: number; zBase: number }): Projection {
+  const { scale, zScale, zBase } = opts;
   const cx = scene.width / 2;
   const cy = scene.depth / 2;
+  // view direction (toward the viewer) is (a, a, 1) with a = zScale / scale: moving along it keeps sx and sy
+  const a = zScale / scale;
   return {
     project(x, y, z) {
-      let u = x - cx;
-      let v = y - cy;
-      for (let i = 0; i < ((turn % 4) + 4) % 4; i++) [u, v] = [-v, u];
+      const u = x - cx;
+      const v = y - cy;
       return {
         sx: (u - v) * scale,
         sy: ((u + v) / 2) * scale - (z - zBase) * zScale,
-        depth: u + v,
+        depth: a * (u + v) + (z - zBase),
       };
     },
   };
