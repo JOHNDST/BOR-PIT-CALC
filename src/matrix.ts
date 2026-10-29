@@ -10,7 +10,8 @@ export interface ParseResult {
 const BLANK = new Set(['', '-', 'x', 'X', '.', '*']);
 
 function splitLine(line: string): string[] {
-  if (line.includes('\t')) return line.split('\t');
+  // spreadsheet copies are tab separated and may carry thousands separators ("1,234.5")
+  if (line.includes('\t')) return line.split('\t').map((t) => t.replace(/,(?=\d{3}(?!\d))/g, ''));
   if (/[,;]/.test(line)) return line.split(/[,;]/);
   return line.trim().split(/\s+/);
 }
@@ -60,9 +61,9 @@ export function fmtElev(v: number, digits = 2): string {
   return s.includes('.') ? s : `${s}.0`;
 }
 
-/** Column-aligned text for the matrix editors. Unused corners print as "-". */
-export function formatMatrix(m: number[][], used: (r: number, c: number) => boolean): string {
-  const cells = m.map((row, r) => row.map((v, c) => (used(r, c) ? fmtElev(v) : '-')));
-  const width = Math.max(1, ...cells.flat().map((s) => s.length));
-  return cells.map((row) => row.map((s) => s.padStart(width)).join(' ')).join('\n');
+/** Tab separated rows, the format spreadsheets paste. */
+export function toTSV(m: number[][], r0 = 0, c0 = 0, r1 = m.length - 1, c1 = (m[0]?.length ?? 1) - 1): string {
+  const lines: string[] = [];
+  for (let r = r0; r <= r1; r++) lines.push(m[r].slice(c0, c1 + 1).map((v) => fmt(v, 3)).join('\t'));
+  return lines.join('\n');
 }

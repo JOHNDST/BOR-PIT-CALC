@@ -16,12 +16,13 @@ V = A/4 × (1Σh1 + 2Σh2 + 3Σh3 + 4Σh4)
 
 - Rectangular grid: cell width, cell height, column and row counts (up to 300 × 300), feet or meters.
 - Edit shape mode: click cells to remove or add them, for L-shaped and irregular sites (this is where C corners appear).
-- Elevation matrices for existing and proposed grades: paste from a spreadsheet (spaces, commas or tabs; `-` leaves a corner unchanged). Level all proposed corners to one elevation, or copy the existing grade.
-- Click any corner in the plan to edit its existing and proposed elevation. Enter jumps to the next corner.
+- Elevations in a small spreadsheet (Existing / Proposed tabs): click a cell and paste a block from Excel, select with drag, Shift+arrows or Ctrl+A and copy back out. Cells save as you type; a paste that does not fit grows the grid. Level all proposed corners to one elevation, or copy the existing grade.
+- In the plan, every point shows its proposed elevation above right and its existing elevation (in brackets) below right. Click a number, or the point, to edit it in place; it saves as you type. Enter goes to the next point, Tab switches proposed / existing, Esc closes.
 - Live cut, fill and net totals (ft³ and yd³, or m³), the Σh table, the worked formula and per-cell volumes.
 - Plan view and isometric 3D view, both with drag to pan, wheel or pinch to zoom, and zoom to all. The 3D view is a hidden-line drawing: the existing ground is hatched, the proposed grade and the cut/fill depths are lines, dashed where hidden.
-- Big grids stay fast: the plan only draws what is on screen and switches to a one-pixel-per-cell overview when zoomed out; the 3D view drops detail as cells shrink.
-- Work is kept in the browser's local storage. `?example=exercise`, `?example=basement` or `?example=slope` loads a worked example.
+- On a desktop the page fits the window; the visualizer takes the free height.
+- Big grids stay fast: the plan only draws what is on screen and switches to a one-pixel-per-cell overview when zoomed out; the 3D view drops detail as cells shrink; the spreadsheet only renders visible cells.
+- Work is kept in the browser's local storage. The page offers one example (cut + fill); `?example=exercise` and `?example=basement` load the two textbook problems.
 
 The two textbook examples (in-class exercise: 67.38 yd³; basement: 352.2 yd³) are checked in `src/calc.test.ts`.
 

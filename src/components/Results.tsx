@@ -105,6 +105,7 @@ export function Results({ grid, result }: { grid: Grid; result: Result }) {
 
       <Formula name="CUT" side={result.cut} area={result.area} grid={grid} result={result} />
       <Formula name="FILL" side={result.fill} area={result.area} grid={grid} result={result} />
+      <p className="note">h = existing - proposed. Positive h is cut, negative h is fill. Corners are typed by how many site cells share them.</p>
     </div>
   );
 }

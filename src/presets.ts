@@ -67,8 +67,12 @@ const slope: Grid = {
   proposed: makeMatrix(4, 5, () => 100),
 };
 
+/** Every worked example; `?example=<id>` loads one. The textbook ones also back the unit tests. */
 export const PRESETS: Preset[] = [
+  { id: 'slope', label: 'Cut + fill', note: 'Sloping ground leveled to 100.0 ft', grid: slope },
   { id: 'exercise', label: 'Exercise', note: 'L-shaped site leveled to 100.0 ft', grid: exercise },
   { id: 'basement', label: 'Basement', note: 'Basement dug to 26.9 ft', grid: basement },
-  { id: 'slope', label: 'Cut + fill', note: 'Sloping ground leveled to 100.0 ft', grid: slope },
 ];
+
+/** The one example offered on the page. */
+export const EXAMPLE = PRESETS[0];

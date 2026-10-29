@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compute, createGrid, cornerCount, FT3_PER_YD3, resizeGrid, sideTerms } from './calc';
 import { PRESETS } from './presets';
-import { formatMatrix, parseMatrix } from './matrix';
+import { parseMatrix, toTSV } from './matrix';
 
 const preset = (id: string) => PRESETS.find((p) => p.id === id)!.grid;
 const round = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
@@ -97,7 +97,21 @@ describe('matrix text', () => {
     expect(parseMatrix('1 2\n3 abc').error).toMatch(/Row 2, value 2/);
   });
 
-  it('formats aligned columns with unused corners as -', () => {
-    expect(formatMatrix([[1, 22.5], [3, 4]], (r, c) => !(r === 1 && c === 1))).toBe(' 1.0 22.5\n 3.0    -');
+  it('reads a spreadsheet paste with thousands separators and empty cells', () => {
+    const p = parseMatrix('1,234.5\t2\t\n3\t\t4.25\n');
+    expect(p.error).toBeNull();
+    expect(p.values).toEqual([
+      [1234.5, 2, null],
+      [3, null, 4.25],
+    ]);
+  });
+
+  it('writes tab separated rows for spreadsheets', () => {
+    const m = [
+      [1, 22.5, 3],
+      [4, 5.125, 6],
+    ];
+    expect(toTSV(m)).toBe('1\t22.5\t3\n4\t5.125\t6');
+    expect(toTSV(m, 0, 1, 1, 2)).toBe('22.5\t3\n5.125\t6');
   });
 });

@@ -84,7 +84,6 @@ body {
 /* notched pixel border: four offset shadows leave the corners open */
 .panel,
 .btn,
-.editor,
 .zoom-tools {
   box-shadow:
     0 calc(-1 * var(--b)) 0 0 var(--ink),
@@ -94,22 +93,22 @@ body {
 }
 
 .app {
-  max-width: 1500px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 16px 20px 28px;
+  padding: 12px 20px 20px;
 }
 
 .top {
   display: flex;
   align-items: baseline;
-  gap: 8px 20px;
+  gap: 4px 16px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 h1 {
   font-family: var(--font-head);
-  font-size: 24px;
+  font-size: 16px;
   font-weight: normal;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -123,14 +122,16 @@ h1 {
 
 .layout {
   display: grid;
-  grid-template-columns: 290px minmax(0, 1fr) 340px;
+  grid-template-columns: 320px minmax(0, 1fr) 330px;
   gap: 20px;
   align-items: start;
 }
 
 .col-left {
-  display: grid;
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
 }
 
 .panel {
@@ -174,8 +175,7 @@ h1 {
 }
 
 input,
-select,
-textarea {
+select {
   font-family: var(--font-mono);
   font-size: 16px;
   color: var(--ink);
@@ -200,7 +200,6 @@ select {
 
 input:focus,
 select:focus,
-textarea:focus,
 .btn:focus-visible {
   outline: var(--b) dashed var(--ink);
   outline-offset: 3px;
@@ -290,10 +289,6 @@ input.bad {
   width: 104px;
 }
 
-.examples .dim {
-  margin-right: 4px;
-}
-
 .hint,
 .dim {
   color: var(--ink-soft);
@@ -314,19 +309,127 @@ input.bad {
   gap: 4px;
 }
 
-.matrix {
+/* elevation spreadsheet */
+.sheet-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.sheet {
   display: grid;
+  height: 220px;
+  border: var(--b) solid var(--ink);
+  background: #fff;
+  font-family: var(--font-mono);
+  overflow: hidden;
+}
+
+.sh-corner,
+.sh-colhead,
+.sh-rowhead {
+  background: var(--tone-2);
+  color: var(--ink-soft);
+  overflow: hidden;
+  position: relative;
+}
+
+.sh-colhead > div,
+.sh-rowhead > div {
+  position: absolute;
+  inset: 0;
+}
+
+.sh-h {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  width: 100%;
+  border-right: 1px solid var(--faint);
+  border-bottom: 1px solid var(--faint);
+  user-select: none;
+}
+
+.sh-h.on {
+  background: var(--ink);
+  color: var(--on-ink);
+}
+
+.sh-body {
+  position: relative;
+  overflow: scroll;
+  cursor: cell;
+}
+
+.sh-inner {
+  position: relative;
+}
+
+.sh-cell,
+.sh-input {
+  position: absolute;
+  width: 60px;
+  height: 22px;
+  padding: 0 2px;
+  line-height: 21px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sh-cell {
+  border-right: 1px solid var(--faint);
+  border-bottom: 1px solid var(--faint);
+  user-select: none;
+}
+
+.sh-cell.unused,
+.sh-input.unused {
+  color: var(--tone-2);
+}
+
+.sh-cell.in-sel {
+  background: var(--pat-fill);
+}
+
+.sh-sel {
+  position: absolute;
+  border: 2px solid var(--ink);
+  pointer-events: none;
+}
+
+.sh-input {
+  border: 2px solid var(--ink);
+  background: #fff;
+  font-size: 16px;
+  z-index: 1;
+}
+
+.sh-input:focus {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--panel),
+    0 0 0 4px var(--ink);
+}
+
+.sheet-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 6px;
 }
 
-/* fixed height with scroll bars always shown, so big matrices stay inside the panel */
-.matrix textarea {
-  display: block;
-  height: 176px;
-  resize: vertical;
-  white-space: pre;
-  overflow: scroll;
-  line-height: 1.2;
+.sheet-foot .dim {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-foot .btn {
+  margin: 0 var(--b);
+  flex: none;
 }
 
 .level-input {
@@ -335,15 +438,15 @@ input.bad {
 
 /* pixel scroll bars */
 .px-scroll::-webkit-scrollbar {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 .px-scroll::-webkit-scrollbar-track {
   background: repeating-conic-gradient(var(--tone-2) 0 25%, var(--panel) 0 50%) 0 0 / 4px 4px;
 }
 .px-scroll::-webkit-scrollbar-thumb {
   background: var(--ink);
-  border: 3px solid var(--panel);
+  border: 2px solid var(--panel);
 }
 .px-scroll::-webkit-scrollbar-corner {
   background: var(--panel);
@@ -541,63 +644,32 @@ input.bad {
   color: var(--on-ink);
 }
 
-.editor {
+/* in-place corner value editor */
+.inline-edit {
   position: absolute;
-  background: var(--panel);
-  display: grid;
-  gap: 8px;
-  padding: 0 0 8px;
+  display: flex;
+  align-items: stretch;
   z-index: 2;
   cursor: default;
-  user-select: text;
 }
 
-.editor > * {
-  margin: 0 10px;
-}
-
-.editor-head {
-  margin: 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.inline-tag {
   background: var(--ink);
   color: var(--on-ink);
   font-weight: 700;
-  text-transform: uppercase;
-  padding: 2px 2px 2px 10px;
+  padding: 0 4px;
+  line-height: 22px;
 }
 
-.editor-head .x {
-  margin: 2px;
-  box-shadow: none;
-  background: var(--ink);
-  color: var(--on-ink);
+.inline-edit input {
+  width: 84px;
+  height: 22px;
+  padding: 0 4px;
+  border-width: 2px;
 }
 
-.editor-head .x:hover {
-  background: var(--tone-3);
-}
-
-.editor-type {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.editor .field.row {
-  grid-template-columns: 74px 1fr;
-}
-
-.editor-nav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.editor-hint {
-  color: var(--ink-soft);
-  margin-left: 6px;
+.inline-edit input:focus {
+  outline: none;
 }
 
 .zoom-tools {
@@ -637,7 +709,7 @@ input.bad {
 }
 
 .status {
-  min-height: 40px;
+  min-height: 36px;
   border-top: 2px dashed var(--faint);
   padding-top: 8px;
   overflow-wrap: anywhere;
@@ -787,14 +859,67 @@ input.bad {
   padding-left: 12px;
 }
 
-.foot {
-  margin-top: 20px;
+.note {
   color: var(--ink-soft);
+  margin: 0;
+  border-top: 2px dashed var(--faint);
+  padding-top: 10px;
+}
+
+/* desktop: the page fits the window. The visualizer takes the free height; the sidebar
+   and the results scroll inside their own panels if the window is short. */
+@media (min-width: 1201px) and (min-height: 560px) {
+  .app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .layout {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: 100%;
+  }
+  .layout > * {
+    height: calc(100% - 2 * var(--b));
+    min-height: 0;
+  }
+  .col-left {
+    height: 100%;
+  }
+  .p-grid {
+    flex: none;
+  }
+  .p-elev {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .p-elev .sheet-wrap {
+    flex: 1;
+  }
+  .p-elev .sheet {
+    flex: 1;
+    height: auto;
+    min-height: 110px;
+  }
+  .viz {
+    display: flex;
+    flex-direction: column;
+  }
+  .viz .vp {
+    flex: 1;
+    height: auto;
+    min-height: 220px;
+  }
+  .results {
+    overflow: auto;
+  }
 }
 
 @media (max-width: 1200px) {
   .layout {
-    grid-template-columns: 290px minmax(0, 1fr);
+    grid-template-columns: 320px minmax(0, 1fr);
   }
   .results {
     grid-column: 1 / -1;

@@ -6,24 +6,34 @@ import { type PanZoom, usePanZoom } from '../usePanZoom';
 import { ZoomTools } from './ZoomTools';
 
 export type Mode = 'edit' | 'shape';
+export type Field = 'existing' | 'proposed';
 export interface CornerRef {
   r: number;
   c: number;
+}
+export interface EditRef extends CornerRef {
+  field: Field;
+}
+export interface Hover {
+  corner: CornerRef | null;
+  cell: CornerRef | null;
 }
 
 interface Props {
   grid: Grid;
   result: Result;
   mode: Mode;
-  selected: CornerRef | null;
-  onCornerClick: (k: CornerRef) => void;
+  /** the corner value being edited in place, if any */
+  editing: EditRef | null;
+  onEdit: (e: EditRef | null) => void;
+  onValue: (e: EditRef, v: number) => void;
+  /** move the edit to the next (1) or previous (-1) corner */
+  onStep: (dir: 1 | -1) => void;
   onCellClick: (r: number, c: number) => void;
-  onCellHover: (cell: { r: number; c: number } | null) => void;
-  /** HTML drawn over the viewport (corner editor); gets the layout, pan/zoom and viewport size */
-  overlay?: (L: Layout, view: PanZoom, size: { w: number; h: number }) => React.ReactNode;
+  onHover: (h: Hover) => void;
 }
 
-export const MARGIN = { left: 40, top: 40, right: 86, bottom: 64 };
+export const MARGIN = { left: 40, top: 44, right: 86, bottom: 52 };
 const CHAR_W = 8; // Pixel Operator Mono at 16px advances 8px per character
 const LINE_H = 15;
 const MAX_ZOOM = 4;
@@ -124,18 +134,18 @@ function Chip({ x, y, lines }: { x: number; y: number; lines: Line[] }) {
   );
 }
 
-function cornerLines(k: CornerResult): Line[] {
-  const lines: Line[] = [
-    { text: `(${fmtElev(k.existing)})`, cls: 't-soft' },
-    { text: fmtElev(k.proposed), cls: 't-ink' },
-  ];
-  if (k.cut > 0) lines.push({ text: fmtElev(k.cut), cls: 't-cut', arrow: 'down' });
-  else if (k.fill > 0) lines.push({ text: fmtElev(k.fill), cls: 't-fill', arrow: 'up' });
-  else lines.push({ text: '0.0', cls: 't-soft' });
-  return lines;
-}
-
 const rectPath = (x: number, y: number, w: number, h: number) => `M${x} ${y}h${w}v${h}h${-w}z`;
+
+/** Corner labels: proposed above right of the point, existing below right (in brackets, as in the textbook). */
+const LABEL = { dx: 12, proposedTop: -22, existingTop: 4, h: 18 };
+const labelText = (k: CornerResult, field: Field) => (field === 'proposed' ? fmtElev(k.proposed) : `(${fmtElev(k.existing)})`);
+const labelBox = (L: Layout, k: CornerResult, field: Field) => ({
+  x: L.x(k.c) + LABEL.dx,
+  y: L.y(k.r) + (field === 'proposed' ? LABEL.proposedTop : LABEL.existingTop),
+  w: labelText(k, field).length * CHAR_W + 6,
+  h: LABEL.h,
+});
+const showLabels = (L: Layout) => L.cw >= 84 && L.ch >= 64;
 
 interface DetailProps {
   grid: Grid;
@@ -153,8 +163,8 @@ const PlanDetail = memo(function PlanDetail({ grid, result, zoom, mode, range }:
   const L = layoutFor(grid, zoom);
   const { c0, c1, r0, r1 } = range;
   const on = (r: number, c: number) => !!grid.active[r]?.[c];
-  const showCornerText = mode === 'edit' && L.cw >= 100 && L.ch >= 72;
-  const showCellText = L.cw >= 84 && L.ch >= 56;
+  const showCornerText = mode === 'edit' && showLabels(L);
+  const showCellText = L.cw >= 84 && L.ch >= 64;
   // lettered badges when there is room, otherwise small markers so the grid does not turn into a checkerboard
   const showLetter = Math.min(L.cw, L.ch) * 0.45 >= 16;
   const badge = showLetter ? Math.min(22, Math.round(Math.min(L.cw, L.ch) * 0.45)) : Math.max(4, Math.min(8, Math.round(Math.min(L.cw, L.ch) * 0.25)));
@@ -204,7 +214,19 @@ const PlanDetail = memo(function PlanDetail({ grid, result, zoom, mode, range }:
       if (!k.type) continue;
       badges[k.type] += rectPath(L.x(c) - badge / 2, L.y(r) - badge / 2, badge, badge);
       if (showLetter) letters.push(k);
-      if (showCornerText) cornerChips.push(<Chip key={`k${r}-${c}`} x={L.x(c) + 14} y={L.y(r) + 6} lines={cornerLines(k)} />);
+      if (showCornerText) {
+        for (const field of ['proposed', 'existing'] as const) {
+          const b = labelBox(L, k, field);
+          cornerChips.push(
+            <g key={`${field[0]}${r}-${c}`}>
+              <rect x={b.x} y={b.y} width={b.w} height={b.h} className="chip" />
+              <text x={b.x + 3} y={b.y + 13} className={field === 'proposed' ? 't-ink' : 't-soft'}>
+                {labelText(k, field)}
+              </text>
+            </g>,
+          );
+        }
+      }
     }
   }
 
@@ -218,8 +240,10 @@ const PlanDetail = memo(function PlanDetail({ grid, result, zoom, mode, range }:
         if (cell.cut > 0) lines.push({ text: cell.cut.toFixed(1), cls: 't-cut', arrow: 'down' });
         if (cell.fill > 0) lines.push({ text: cell.fill.toFixed(1), cls: 't-fill', arrow: 'up' });
         if (!lines.length) continue;
+        const cx = (L.x(c) + L.x(c + 1)) / 2;
+        const cy = (L.y(r) + L.y(r + 1)) / 2;
         cellChips.push(
-          <Chip key={`v${r}-${c}`} x={L.x(c + 1) - chipWidth(lines) - 18} y={L.y(r + 1) - lines.length * LINE_H - 14} lines={lines} />,
+          <Chip key={`v${r}-${c}`} x={Math.round(cx - chipWidth(lines) / 2)} y={Math.round(cy - (lines.length * LINE_H + 4) / 2)} lines={lines} />,
         );
       }
     }
@@ -263,8 +287,8 @@ const PlanDetail = memo(function PlanDetail({ grid, result, zoom, mode, range }:
               {r + 1}
             </text>
           ))}
-      {r0 === 0 && c0 === 0 && L.cw >= 60 && (
-        <text x={(L.x(0) + L.x(1)) / 2} y={33} className="t-dim" textAnchor="middle">
+      {r1 === grid.rows - 1 && c0 === 0 && L.cw >= 60 && (
+        <text x={(L.x(0) + L.x(1)) / 2} y={L.y(grid.rows) + 44} className="t-dim" textAnchor="middle">
           {fmt(grid.cellW)} {unit}
         </text>
       )}
@@ -339,7 +363,7 @@ function boundaryEdges(grid: Grid): [number, number, number, number][] {
   return out;
 }
 
-export function PlanView({ grid, result, mode, selected, onCornerClick, onCellClick, onCellHover, overlay }: Props) {
+export function PlanView({ grid, result, mode, editing, onEdit, onValue, onStep, onCellClick, onHover }: Props) {
   const vp = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -349,7 +373,7 @@ export function PlanView({ grid, result, mode, selected, onCornerClick, onCellCl
     max: MAX_ZOOM,
     origin: { x: MARGIN.left, y: MARGIN.top },
   });
-  const [hover, setHover] = useState<{ corner: CornerRef | null; cell: CornerRef | null }>({ corner: null, cell: null });
+  const [hover, setHover] = useState<Hover>({ corner: null, cell: null });
 
   useLayoutEffect(() => {
     const el = vp.current;
@@ -422,12 +446,33 @@ export function PlanView({ grid, result, mode, selected, onCornerClick, onCellCl
     }
   }, [overview, view, size, L, grid, result, range]);
 
+  // keep the corner being edited on screen (Enter walks through corners that may be off screen)
+  useEffect(() => {
+    if (!editing || !size.w) return;
+    const x = L.x(editing.c) + view.x;
+    const y = L.y(editing.r) + view.y;
+    if (x < 30 || x > size.w - 140 || y < 40 || y > size.h - 40) {
+      setView((v) => ({ ...v, x: Math.round(v.x + size.w / 2 - x), y: Math.round(v.y + size.h / 2 - y) }));
+    }
+  }, [editing?.r, editing?.c]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const hitTest = (clientX: number, clientY: number) => {
     const rect = vp.current!.getBoundingClientRect();
     const px = clientX - rect.left - view.x;
     const py = clientY - rect.top - view.y;
     const fc = (px - MARGIN.left) / L.cw;
     const fr = (py - MARGIN.top) / L.ch;
+    // a label sits right of its corner, so the corner is the one left of the pointer
+    let label: EditRef | null = null;
+    if (mode === 'edit' && showLabels(L)) {
+      const k = result.corners[Math.round(fr)]?.[Math.floor(fc)];
+      if (k?.type) {
+        for (const field of ['proposed', 'existing'] as const) {
+          const b = labelBox(L, k, field);
+          if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) label = { r: k.r, c: k.c, field };
+        }
+      }
+    }
     const kc = Math.round(fc);
     const kr = Math.round(fr);
     const reach = Math.max(6, Math.min(16, Math.min(L.cw, L.ch) / 2 - 1));
@@ -436,30 +481,34 @@ export function PlanView({ grid, result, mode, selected, onCornerClick, onCellCl
     const c = Math.floor(fc);
     const r = Math.floor(fr);
     const cell = c >= 0 && c < grid.cols && r >= 0 && r < grid.rows ? { r, c } : null;
-    return { corner, cell };
+    return { label, corner: corner ?? (label ? { r: label.r, c: label.c } : null), cell };
   };
 
   const same = (a: CornerRef | null, b: CornerRef | null) => a?.r === b?.r && a?.c === b?.c;
+  const [overLabel, setOverLabel] = useState(false);
   const onMove = (e: React.PointerEvent) => {
     if (dragging || (e.target as Element).closest('.no-pan')) return;
     const h = hitTest(e.clientX, e.clientY);
+    setOverLabel(!!h.label);
     if (same(h.corner, hover.corner) && same(h.cell, hover.cell)) return;
-    setHover(h);
-    if (!same(h.cell, hover.cell)) onCellHover(h.cell);
+    const next = { corner: h.corner, cell: h.cell };
+    setHover(next);
+    onHover(next);
   };
   const onClick = (e: React.MouseEvent) => {
     if ((e.target as Element).closest('.no-pan')) return;
     const h = hitTest(e.clientX, e.clientY);
-    if (mode === 'edit' && h.corner) onCornerClick(h.corner);
+    if (mode === 'edit') onEdit(h.label ?? (h.corner ? { ...h.corner, field: 'proposed' } : null));
     if (mode === 'shape' && h.cell) onCellClick(h.cell.r, h.cell.c);
   };
-  const clickable = mode === 'edit' ? !!hover.corner : !!hover.cell;
+  const clickable = mode === 'edit' ? !!hover.corner || overLabel : !!hover.cell;
 
   const hl = mode === 'shape' ? hover.cell : null;
   const ring = (k: CornerRef, cls: string) => {
     const s = Math.round(Math.max(14, Math.min(32, Math.min(L.cw, L.ch) * 0.45 + 10)));
     return <div className={cls} style={{ left: L.x(k.c) - s / 2, top: L.y(k.r) - s / 2, width: s, height: s }} />;
   };
+  const editCorner = editing && mode === 'edit' ? result.corners[editing.r]?.[editing.c] : null;
 
   return (
     <div
@@ -469,7 +518,7 @@ export function PlanView({ grid, result, mode, selected, onCornerClick, onCellCl
       onPointerMove={onMove}
       onPointerLeave={() => {
         setHover({ corner: null, cell: null });
-        onCellHover(null);
+        onHover({ corner: null, cell: null });
       }}
       onClick={onClick}
     >
@@ -483,11 +532,77 @@ export function PlanView({ grid, result, mode, selected, onCornerClick, onCellCl
           />
         )}
         {mode === 'edit' && hover.corner && ring(hover.corner, 'hover-ring')}
-        {mode === 'edit' && selected && ring(selected, 'sel-ring')}
+        {editCorner?.type && ring(editCorner, 'sel-ring')}
+        {editCorner?.type && editing && (
+          <InlineValue key="inline" corner={editCorner} edit={editing} L={L} onValue={onValue} onEdit={onEdit} onStep={onStep} />
+        )}
       </div>
       {!L.toScale && <span className="vp-note">cells not to scale</span>}
       <ZoomTools zoom={view.zoom} onZoom={(f) => zoomAt(f, size.w / 2, size.h / 2)} onFit={fit} />
-      {overlay?.(L, view, size)}
+    </div>
+  );
+}
+
+/**
+ * The number itself turns into an input: it sits exactly on the label, saves as you type,
+ * Enter / Shift+Enter walk to the next / previous corner, Tab swaps proposed and existing.
+ */
+function InlineValue({
+  corner,
+  edit,
+  L,
+  onValue,
+  onEdit,
+  onStep,
+}: {
+  corner: CornerResult;
+  edit: EditRef;
+  L: Layout;
+  onValue: (e: EditRef, v: number) => void;
+  onEdit: (e: EditRef | null) => void;
+  onStep: (dir: 1 | -1) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  const value = corner[edit.field];
+  const [text, setText] = useState(fmt(value, 3));
+  // one input for every corner, so walking with Enter never blurs it
+  useEffect(() => {
+    setText((t) => (t.trim() !== '' && Number(t) === value ? t : fmt(value, 3)));
+  }, [value]);
+  useEffect(() => {
+    setText(fmt(value, 3));
+    ref.current?.focus({ preventScroll: true });
+    ref.current?.select();
+  }, [edit.r, edit.c, edit.field]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const b = labelBox(L, corner, edit.field);
+  return (
+    <div className="inline-edit no-pan" style={{ left: b.x - 2, top: b.y - 2 }}>
+      <span className="inline-tag">{edit.field === 'proposed' ? 'P' : 'E'}</span>
+      <input
+        ref={ref}
+        inputMode="decimal"
+        value={text}
+        aria-label={`${edit.field} elevation at corner ${edit.r + 1}, ${edit.c + 1}`}
+        className={text.trim() !== '' && !Number.isFinite(Number(text)) ? 'bad' : ''}
+        onChange={(e) => {
+          setText(e.target.value);
+          const v = Number(e.target.value);
+          if (e.target.value.trim() !== '' && Number.isFinite(v)) onValue(edit, v);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onStep(e.shiftKey ? -1 : 1);
+          } else if (e.key === 'Tab') {
+            e.preventDefault();
+            onEdit({ ...edit, field: edit.field === 'proposed' ? 'existing' : 'proposed' });
+          } else if (e.key === 'Escape') {
+            onEdit(null);
+          }
+        }}
+        onBlur={() => onEdit(null)}
+      />
     </div>
   );
 }
