@@ -117,7 +117,7 @@ export default function App() {
   const levelOk = level.trim() !== '' && Number.isFinite(levelValue);
 
   const status = (() => {
-    if (mode === 'shape') return 'Click cells to add or remove them from the site. Drag to pan, scroll or pinch to zoom.';
+    if (mode === 'shape') return 'Click cells to add or remove them from the site. Drag: pan · Scroll: zoom';
     const k = hover.corner ? result.corners[hover.corner.r]?.[hover.corner.c] : null;
     if (k?.type) {
       const kind = k.cut > 0 ? 'cut' : k.fill > 0 ? 'fill' : 'no change';
@@ -135,7 +135,7 @@ export default function App() {
         `${name} = ${fmt(result.area)}/4 × (${vals.map((x) => fmt(x)).join(' + ')}) = ${fmt(v, 1)} ${grid.units}³`;
       return `CELL ${cell.r + 1},${cell.c + 1}  ${part('cut', ks.map((x) => x.cut), cell.cut)}   ${part('fill', ks.map((x) => x.fill), cell.fill)}`;
     }
-    return 'Click a number or a point to edit it; it saves as you type. Enter = next point, Tab = proposed / existing. Drag to pan, scroll to zoom.';
+    return 'Click a number or point to edit (saves as you type). Enter: next point · Tab: P / E · Drag: pan · Scroll: zoom';
   })();
 
   return (
@@ -243,7 +243,7 @@ export default function App() {
           <div className="status">
             {view === 'plan'
               ? status
-              : 'Hatch = existing ground. Black = proposed grade, grey = existing grid, orange / blue = cut / fill depth. Dashed = hidden. Drag to pan, scroll or pinch to zoom.'}
+              : 'Hatch: existing ground · Black: proposed grade · Grey: existing grid · Orange / blue: cut / fill depth · Dashed: hidden · Drag: pan · Scroll: zoom'}
           </div>
 
           <div className="legend">

@@ -708,11 +708,18 @@ input.bad {
   pointer-events: none;
 }
 
+/* fixed height, so hover text of any length never resizes the viewport above it */
 .status {
-  min-height: 36px;
+  --lines: 2;
+  height: calc(var(--lines) * 20px + 10px);
+  line-height: 20px;
   border-top: 2px dashed var(--faint);
   padding-top: 8px;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--lines);
+  overflow: hidden;
 }
 
 .legend {
@@ -951,6 +958,9 @@ input.bad {
   }
   .vp {
     height: 420px;
+  }
+  .status {
+    --lines: 3;
   }
   h1 {
     font-size: 16px;
